@@ -1141,11 +1141,11 @@ class DCGAN(object):
     def load_mnist(self):
         data_dir = os.path.join(self.data_dir, self.dataset_name)
 
-        fd = open(os.path.join(data_dir, 'train-images-idx3-ubyte'))
+        fd = open(os.path.join(data_dir, 'raw', 'train-images-idx3-ubyte'))
         loaded = np.fromfile(file=fd, dtype=np.uint8)
         trX = loaded[16:].reshape((60000, 28, 28, 1)).astype(np.float)
 
-        fd = open(os.path.join(data_dir, 'train-labels-idx1-ubyte'))
+        fd = open(os.path.join(data_dir, 'raw', 'train-labels-idx1-ubyte'))
         loaded = np.fromfile(file=fd, dtype=np.uint8)
         trY = loaded[8:].reshape((60000)).astype(np.int)
 
@@ -1391,76 +1391,76 @@ class DCGAN(object):
 
                 errD = 0
                 # train teacher models in batches, teachers_batch: how many batches of teacher
-                if epoch > 0:
-                    for batch_num in tqdm(range(self.teachers_batch), desc="teachers"):
-                        if self.teachers_batch > 1:
-                            could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch,
+                #if epoch > 0:
+                for batch_num in tqdm(range(self.teachers_batch), desc="teachers"):
+                    if self.teachers_batch > 1:
+                        could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch,
+                                                                     batch_num=batch_num)
+                        if could_load:
+                            counter = checkpoint_counter
+                            print("load sucess_this_epoch")
+                        else:
+                            print('fail_1')
+                            could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch - 1,
                                                                          batch_num=batch_num)
                             if could_load:
                                 counter = checkpoint_counter
-                                print("load sucess_this_epoch")
+                                print("load sucess_previous_epoch")
                             else:
-                                print('fail_1')
-                                could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch - 1,
-                                                                             batch_num=batch_num)
-                                if could_load:
-                                    counter = checkpoint_counter
-                                    print("load sucess_previous_epoch")
-                                else:
-                                    print('fail_2')
-                                    could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=0,
-                                                                                 batch_num=-1)
+                                print('fail_2')
+                                could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=0,
+                                                                             batch_num=-1)
 
-                        # train each teacher in this batch, batch_teachers: how many teacher in a batch
+                    # train each teacher in this batch, batch_teachers: how many teacher in a batch
 
-                        for teacher_id in range(self.batch_teachers):
-                            # print("Training teacher model %d" % teacher_id)
-                            # data_X = self.data_X if config.non_private else self.train_data_list[teacher_id+batch_num*self.batch_teachers]
-                            data_X = self.train_data_list[teacher_id + batch_num * self.batch_teachers]
+                    for teacher_id in range(self.batch_teachers):
+                        # print("Training teacher model %d" % teacher_id)
+                        # data_X = self.data_X if config.non_private else self.train_data_list[teacher_id+batch_num*self.batch_teachers]
+                        data_X = self.train_data_list[teacher_id + batch_num * self.batch_teachers]
 
-                            batch_idx = range(idx * self.batch_size, (idx + 1) * self.batch_size)
-                            batch_images = data_X[batch_idx]
+                        batch_idx = range(idx * self.batch_size, (idx + 1) * self.batch_size)
+                        batch_images = data_X[batch_idx]
 
-                            for k in range(config.d_step if epoch > 0 or config.pretrain_teacher == 0 else config.pretrain_teacher):
-                                if self.y is not None:
-                                    # data_y = self.data_y if config.non_private else self.train_label_list[teacher_id+batch_num*self.batch_teachers]
-                                    data_y = self.train_label_list[teacher_id + batch_num * self.batch_teachers]
-                                    # print(data_y.shape)
-                                    batch_labels = data_y[batch_idx]
+                        for k in range(config.d_step if epoch > 0 or config.pretrain_teacher == 0 else config.pretrain_teacher):
+                            if self.y is not None:
+                                # data_y = self.data_y if config.non_private else self.train_label_list[teacher_id+batch_num*self.batch_teachers]
+                                data_y = self.train_label_list[teacher_id + batch_num * self.batch_teachers]
+                                # print(data_y.shape)
+                                batch_labels = data_y[batch_idx]
 
-                                    _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
-                                                                   feed_dict={
-                                                                       self.inputs: batch_images,
-                                                                       self.z: batch_z,
-                                                                       self.y: batch_labels,
-                                                                   })
+                                _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
+                                                               feed_dict={
+                                                                   self.inputs: batch_images,
+                                                                   self.z: batch_z,
+                                                                   self.y: batch_labels,
+                                                               })
 
-                                    self.writer.add_summary(summary_str, epoch)
+                                self.writer.add_summary(summary_str, epoch)
 
-                                    err = self.teachers_list[teacher_id]['d_loss'].eval({
-                                        self.z: batch_z,
-                                        self.inputs: batch_images,
-                                        self.y: batch_labels,
-                                    })
-                                    # print(str(batch_num*self.batch_teachers + teacher_id) + "loss:"+str(err))
-                                    errD += err
-                                else:
-                                    _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
-                                                                   feed_dict={
-                                                                       self.inputs: batch_images,
-                                                                       self.z: batch_z,
-                                                                   })
+                                err = self.teachers_list[teacher_id]['d_loss'].eval({
+                                    self.z: batch_z,
+                                    self.inputs: batch_images,
+                                    self.y: batch_labels,
+                                })
+                                # print(str(batch_num*self.batch_teachers + teacher_id) + "loss:"+str(err))
+                                errD += err
+                            else:
+                                _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
+                                                               feed_dict={
+                                                                   self.inputs: batch_images,
+                                                                   self.z: batch_z,
+                                                               })
 
-                                    self.writer.add_summary(summary_str, epoch)
+                                self.writer.add_summary(summary_str, epoch)
 
-                                    err = self.teachers_list[teacher_id]['d_loss'].eval({
-                                        self.z: batch_z,
-                                        self.inputs: batch_images,
-                                    })
-                                    # print(str(batch_num * self.batch_teachers + teacher_id) + "d_loss:" + str(err))
-                                    errD += err
+                                err = self.teachers_list[teacher_id]['d_loss'].eval({
+                                    self.z: batch_z,
+                                    self.inputs: batch_images,
+                                })
+                                # print(str(batch_num * self.batch_teachers + teacher_id) + "d_loss:" + str(err))
+                                errD += err
 
-                        self.save_d(self.teacher_dir, epoch, batch_num)
+                    self.save_d(self.teacher_dir, epoch, batch_num)
 
                 # print("------------------train-generator-------------------")
                 for k in range(config.g_step):

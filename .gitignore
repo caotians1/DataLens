@@ -1,4 +1,7 @@
 .idea
+data
+workspace
+checkpoints
 .DS_Store
 evaluation/.DS_Store
 fmnist_z_dim*
