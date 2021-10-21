@@ -11,7 +11,7 @@ from gen_data import batch2str
 import sys
 import pickle
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 flags = tf.app.flags
 flags.DEFINE_integer("epoch", 1000, "Epoch for training teacher models")
@@ -99,7 +99,8 @@ def main(_):
     # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
     run_config = tf.ConfigProto()
     run_config.gpu_options.allow_growth = True
-
+    run_config.gpu_options.per_process_gpu_memory_fraction=0.8
+    #gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
     if FLAGS.thresh == 0:
         thresh = None
     else:
@@ -139,6 +140,8 @@ def main(_):
             output_width=FLAGS.output_width,
             wgan=FLAGS.wgan,
             small=FLAGS.small,
+            #df_dim=32,
+            #dfc_dim=256,
             config=FLAGS
         )
 

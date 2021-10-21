@@ -16,17 +16,17 @@ from pate_core import *
 import pickle
 from keras.utils import np_utils
 # import pandas as pd
-import torch
-import torch.utils.data
-import torchvision
-import torchvision.transforms as transforms
-import scipy
+#import torch
+#import torch.utils.data
+# import torchvision
+# import torchvision.transforms as transforms
+# import scipy
 from dp_pca import ComputeDPPrincipalProjection
 from sklearn.random_projection import GaussianRandomProjection
 from utils import pp, visualize, to_json, show_all_variables, mkdir
 from gen_data import batch2str
 from PIL import Image
-
+from tqdm import tqdm
 
 def partition_dataset(data, labels, nb_teachers, teacher_id):
     """
@@ -906,6 +906,7 @@ class DCGAN(object):
             return X_resized, y
 
     def load_cinic(self):
+        import torch
         import torchvision
         import torchvision.transforms as transforms
         from keras.utils import np_utils
@@ -927,6 +928,7 @@ class DCGAN(object):
             return x, y
 
     def load_cinic_test(self):
+        import torch
         import torchvision
         import torchvision.transforms as transforms
         from keras.utils import np_utils
@@ -1072,7 +1074,8 @@ class DCGAN(object):
             raise Exception("Mode {} Not support".format(mode))
 
     def load_small_celebA_gender(self, mode='train'):
-        celebA_directory = '../../data/celebA/'
+        celebA_directory = './data/celebA'
+        #celebA_directory = '../../data/celebA/'
         import joblib
 
         if mode == 'train':
@@ -1097,7 +1100,7 @@ class DCGAN(object):
             raise Exception("Mode {} Not support".format(mode))
 
     def load_fashion_mnist(self):
-        data_dir = os.path.join(self.data_dir, self.dataset_name)
+        data_dir = os.path.join(self.data_dir, "FashionMNIST/raw")#os.path.join(self.data_dir, self.dataset_name)
 
         fd = open(os.path.join(data_dir, 'train-images-idx3-ubyte'))
         loaded = np.fromfile(file=fd, dtype=np.uint8)
@@ -1174,6 +1177,8 @@ class DCGAN(object):
 
         self.image_dims = image_dims
 
+        #pop = tf.print("inputs, ", self.inputs)
+        #with tf.control_dependencies([pop,]):
         inputs = self.inputs
         if self.crop:
             inputs = tf.image.resize_image_with_crop_or_pad(inputs, target_height=self.output_height,
@@ -1181,7 +1186,8 @@ class DCGAN(object):
 
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
         self.z_sum = histogram_summary("z", self.z)
-
+        #pop2 = tf.print("z, ",self.z)
+        #with tf.control_dependencies([pop2,]):
         self.G = self.generator(self.z, self.y)
         if 'slt' in self.dataset_name or 'cifar' in self.dataset_name:
             self.G_sum = image_summary("G", self.G, max_outputs=10)
@@ -1235,6 +1241,8 @@ class DCGAN(object):
             })
 
             # calculate the change in the images that would minimize generator loss
+            #pop3 = tf.print("D_output, ", D, D_)
+            #with tf.control_dependencies([pop3,]):
             teacher['img_grads'] = -tf.gradients(teacher['g_loss'], self.G)[0]
 
             if 'slt' in self.dataset_name:
@@ -1383,74 +1391,76 @@ class DCGAN(object):
 
                 errD = 0
                 # train teacher models in batches, teachers_batch: how many batches of teacher
-                for batch_num in range(self.teachers_batch):
-                    if self.teachers_batch > 1:
-                        could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch,
-                                                                     batch_num=batch_num)
-                        if could_load:
-                            counter = checkpoint_counter
-                            print("load sucess_this_epoch")
-                        else:
-                            print('fail_1')
-                            could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch - 1,
+                if epoch > 0:
+                    for batch_num in tqdm(range(self.teachers_batch), desc="teachers"):
+                        if self.teachers_batch > 1:
+                            could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch,
                                                                          batch_num=batch_num)
                             if could_load:
                                 counter = checkpoint_counter
-                                print("load sucess_previous_epoch")
+                                print("load sucess_this_epoch")
                             else:
-                                print('fail_2')
-                                could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=0,
-                                                                             batch_num=-1)
+                                print('fail_1')
+                                could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=epoch - 1,
+                                                                             batch_num=batch_num)
+                                if could_load:
+                                    counter = checkpoint_counter
+                                    print("load sucess_previous_epoch")
+                                else:
+                                    print('fail_2')
+                                    could_load, checkpoint_counter = self.load_d(self.teacher_dir, epoch=0,
+                                                                                 batch_num=-1)
 
-                    # train each teacher in this batch, batch_teachers: how many teacher in a batch
-                    for teacher_id in range(self.batch_teachers):
-                        # print("Training teacher model %d" % teacher_id)
-                        # data_X = self.data_X if config.non_private else self.train_data_list[teacher_id+batch_num*self.batch_teachers]
-                        data_X = self.train_data_list[teacher_id + batch_num * self.batch_teachers]
+                        # train each teacher in this batch, batch_teachers: how many teacher in a batch
 
-                        batch_idx = range(idx * self.batch_size, (idx + 1) * self.batch_size)
-                        batch_images = data_X[batch_idx]
+                        for teacher_id in range(self.batch_teachers):
+                            # print("Training teacher model %d" % teacher_id)
+                            # data_X = self.data_X if config.non_private else self.train_data_list[teacher_id+batch_num*self.batch_teachers]
+                            data_X = self.train_data_list[teacher_id + batch_num * self.batch_teachers]
 
-                        for k in range(config.d_step if epoch > 0 or config.pretrain_teacher == 0 else config.pretrain_teacher):
-                            if self.y is not None:
-                                # data_y = self.data_y if config.non_private else self.train_label_list[teacher_id+batch_num*self.batch_teachers]
-                                data_y = self.train_label_list[teacher_id + batch_num * self.batch_teachers]
-                                # print(data_y.shape)
-                                batch_labels = data_y[batch_idx]
+                            batch_idx = range(idx * self.batch_size, (idx + 1) * self.batch_size)
+                            batch_images = data_X[batch_idx]
 
-                                _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
-                                                               feed_dict={
-                                                                   self.inputs: batch_images,
-                                                                   self.z: batch_z,
-                                                                   self.y: batch_labels,
-                                                               })
+                            for k in range(config.d_step if epoch > 0 or config.pretrain_teacher == 0 else config.pretrain_teacher):
+                                if self.y is not None:
+                                    # data_y = self.data_y if config.non_private else self.train_label_list[teacher_id+batch_num*self.batch_teachers]
+                                    data_y = self.train_label_list[teacher_id + batch_num * self.batch_teachers]
+                                    # print(data_y.shape)
+                                    batch_labels = data_y[batch_idx]
 
-                                self.writer.add_summary(summary_str, epoch)
+                                    _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
+                                                                   feed_dict={
+                                                                       self.inputs: batch_images,
+                                                                       self.z: batch_z,
+                                                                       self.y: batch_labels,
+                                                                   })
 
-                                err = self.teachers_list[teacher_id]['d_loss'].eval({
-                                    self.z: batch_z,
-                                    self.inputs: batch_images,
-                                    self.y: batch_labels,
-                                })
-                                # print(str(batch_num*self.batch_teachers + teacher_id) + "loss:"+str(err))
-                                errD += err
-                            else:
-                                _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
-                                                               feed_dict={
-                                                                   self.inputs: batch_images,
-                                                                   self.z: batch_z,
-                                                               })
+                                    self.writer.add_summary(summary_str, epoch)
 
-                                self.writer.add_summary(summary_str, epoch)
+                                    err = self.teachers_list[teacher_id]['d_loss'].eval({
+                                        self.z: batch_z,
+                                        self.inputs: batch_images,
+                                        self.y: batch_labels,
+                                    })
+                                    # print(str(batch_num*self.batch_teachers + teacher_id) + "loss:"+str(err))
+                                    errD += err
+                                else:
+                                    _, summary_str = self.sess.run([d_optim_list[teacher_id], self.d_sum_list[teacher_id]],
+                                                                   feed_dict={
+                                                                       self.inputs: batch_images,
+                                                                       self.z: batch_z,
+                                                                   })
 
-                                err = self.teachers_list[teacher_id]['d_loss'].eval({
-                                    self.z: batch_z,
-                                    self.inputs: batch_images,
-                                })
-                                # print(str(batch_num * self.batch_teachers + teacher_id) + "d_loss:" + str(err))
-                                errD += err
+                                    self.writer.add_summary(summary_str, epoch)
 
-                    self.save_d(self.teacher_dir, epoch, batch_num)
+                                    err = self.teachers_list[teacher_id]['d_loss'].eval({
+                                        self.z: batch_z,
+                                        self.inputs: batch_images,
+                                    })
+                                    # print(str(batch_num * self.batch_teachers + teacher_id) + "d_loss:" + str(err))
+                                    errD += err
+
+                        self.save_d(self.teacher_dir, epoch, batch_num)
 
                 # print("------------------train-generator-------------------")
                 for k in range(config.g_step):
@@ -1551,12 +1561,12 @@ class DCGAN(object):
                                 np.savetxt(self.checkpoint_dir + "/dept_rdp_order.txt", np.asarray(self.rdp_order_list_dept),
                                            delimiter=",")
 
-                            gen_batch = 100000 // self.batch_size + 1
+                            gen_batch = 50000 // self.batch_size + 1
                             data = self.gen_data(gen_batch)
-                            data = data[:100000]
+                            data = data[:50000]
                             import joblib
-                            interval = 100000 // 10
-                            for slice in range(10):
+                            interval = 50000 // 5
+                            for slice in range(5):
                                 joblib.dump(data[slice * interval: (slice+1) * interval], self.checkpoint_dir + '/eps-%.2f.data' % self.dp_eps_list[-1] + f'-{slice}.pkl')
                             sys.exit()
 
@@ -1671,14 +1681,33 @@ class DCGAN(object):
 
         h1 = tf.reshape(h1, [self.batch_size, -1])
         h1 = concat([h1, y], 1)
-
+        # this lines causes tensorflow.python.framework.errors_impl.InternalError: Blas GEMM launch failed : a.shape=(15, 1284), b.shape=(15, 128), m=1284, n=128, k=15
         if self.wgan:
             h2 = lrelu(linear(h1, self.dfc_dim, 'd_h2_lin'))
         else:
             h2 = lrelu(self.d_bn2(linear(h1, self.dfc_dim, 'd_h2_lin')))
+            #h2_pre = linear(h1, self.dfc_dim, 'd_h2_lin')
+            # h2_bn = tf.layers.batch_normalization(h2_pre,
+            #                                       axis=-1,
+            #                                       momentum=0.9,
+            #                                       epsilon=1e-5,
+            #                                       center=True,
+            #                                       scale=True,
+            #                                       training=True,
+            #                                       name='d_h2_bn'
+            #                                       )
+            # h2_bn = tf.contrib.layers.batch_norm(h2_pre,
+            #                              decay=0.9,
+            #                              updates_collections=None,
+            #                              epsilon=1e-5,
+            #                              scale=True,
+            #                              is_training=True,
+            #                              scope='d_h2_bn')
+            # h2 = lrelu(h2_bn)
+            #h2 = lrelu(linear(h1, self.dfc_dim, 'd_h2_lin'))
         h2 = concat([h2, y], 1)
 
-        h3 = linear(h2, 1, 'd_h3_lin')
+        h3 = linear(h2, 1, 'd_h3_lin') #lrelu(linear(h2, 1, 'd_h3_lin'))
 
         return tf.nn.sigmoid(h3), h3
 

@@ -12,16 +12,16 @@ parser.add_argument('--range', type=int, default=6, help="range of pickles")
 
 args = parser.parse_args()
 
-data = np.zeros((60000, 794))
-dim = 0
-import joblib
-from tqdm import tqdm
-for i in tqdm(range(args.range)):
-    x =  joblib.load(args.data + f'-{i}.pkl')
-    data[dim: dim+len(x)] = x
-    dim += len(x)
+# data = np.zeros((60000, 794))
+# dim = 0
+# import joblib
+# from tqdm import tqdm
+# for i in tqdm(range(args.range)):
+#     x =  joblib.load(args.data + f'-{i}.pkl')
+#     data[dim: dim+len(x)] = x
+#     dim += len(x)
 print(args.data)
-print(data.shape)
+#print(data.shape)
 
 
 
@@ -35,10 +35,14 @@ tf.keras.backend.set_session(tf.Session(config=config))
 
 
 def pipeline(data):
-    x, label = np.hsplit(data, [-10])
+    x = (np.load("D:\Documents\GitHub\sinkhorn_dp_new\gen_img.npy").transpose((0,2,3,1))+1)*0.5
+    label = np.load("D:\Documents\GitHub\sinkhorn_dp_new\gen_label.npy")
     nb_classes = 10
-    label = label.reshape((label.shape[0], nb_classes), order='F')
-    x = x.reshape(x.shape[0], 28, 28, 1)
+    b = np.zeros((label.size, nb_classes))
+    b[np.arange(label.shape[0]), label] = 1
+    #x, label = np.hsplit(data, [-10])
+    label = b.reshape((b.shape[0], nb_classes), order='F')
+    #x = x.reshape(x.shape[0], 28, 28, 1)
     from keras.datasets import fashion_mnist
     (x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
     from keras.utils import np_utils
@@ -65,17 +69,6 @@ def pipeline(data):
     model.add(Flatten(name='flatten'))
     model.add(Dense(64, activation='relu', name='Dense'))
     model.add(Dense(nb_classes, activation='softmax', name='Output'))
-    # model.add(Conv2D(32, kernel_size=3, activation='relu', input_shape=(28, 28, 1), name='Conv2D-1'))
-    # model.add(MaxPooling2D(pool_size=2, name='MaxPool1'))
-    # model.add(Dropout(0.2, name='Dropout-1'))
-    # model.add(Conv2D(64, kernel_size=3, activation='relu', name='Conv2D-2'))
-    # model.add(MaxPooling2D(pool_size=2, name='MaxPool2'))
-    # model.add(Dropout(0.2, name='Dropout-2'))
-    # model.add(Conv2D(128, kernel_size=3, activation='relu', name='Conv2D-3'))
-    # model.add(Flatten(name='flatten'))
-    # model.add(Dense(128, activation='relu', name='Dense'))
-    # model.add(Dropout(0.2, name='Dropout-3'))
-    # model.add(Dense(nb_classes, activation='softmax', name='Output'))
     sgd = optimizers.sgd(lr=2e-3)  # , decay=1e-6, momentum=0.9, nesterov=True)
 
     model.compile(loss='categorical_crossentropy',
@@ -102,6 +95,6 @@ def pipeline(data):
 
 
 
-train_accs, eval_accs = pipeline(data)
+train_accs, eval_accs = pipeline(None)
 print("Max eval acc:", max(eval_accs))
 print("Max train acc:", max(train_accs))
